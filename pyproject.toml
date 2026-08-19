@@ -14,8 +14,18 @@ keywords = ["llm", "agents", "tokens", "cost", "prompt-cache", "context"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    # Pure Python, no compiled parts, no platform-specific paths that are
+    # not resolved at runtime — and now tested on all three in CI.
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Debuggers",
+    "Topic :: System :: Monitoring",
+    "Typing :: Typed",
 ]
 # No runtime dependencies. Reads local files, talks to nothing.
 dependencies = []
