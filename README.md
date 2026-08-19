@@ -86,6 +86,49 @@ It also knows that a change in `tools` costs more than the same change in
 
 ---
 
+## Fixing it
+
+`repair()` applies what is provably safe and proposes what is not.
+
+```python
+from toka import repair_safely
+
+fixed = repair_safely(system=system, tools=tools, messages=messages)
+print(fixed.explain())
+
+response = client.messages.create(
+    system=fixed.system, tools=fixed.tools, messages=fixed.messages, ...
+)
+```
+
+```
+[tier 1] applied: tools (get_weather, search) — key order normalised so
+                  serialisation is byte-stable
+[tier 1] applied: system (last block) — cache_control added at the
+                  tools+system boundary
+
+Not applied — these change what the model reads:
+  system[0] at offset 14 — looks like a timestamp ('2026-08-19T10:33:01Z')
+  — every change to it invalidates the whole prompt. Move it into a later
+  message, after the breakpoint.
+```
+
+**Tier 1 is automatic because it is provably meaning-preserving.** Key order
+is invisible to the model and very visible to the cache; `cache_control` is a
+directive to the provider, not content. `verify()` re-renders both versions
+and asserts the model-visible text is byte-identical, and `repair_safely()`
+raises rather than returning a result that fails that check.
+
+**Tier 2 is never automatic.** Hoisting a timestamp out of the system prompt
+is the single biggest win available — and it moves text the model was
+conditioned on. That is a judgment call about your prompt, so Toka describes
+it and stops.
+
+A repair pass that saves 20% and breaks one task in fifty is a bad trade, and
+token metrics alone will happily call it a win.
+
+---
+
 ## Usage
 
 ```bash
