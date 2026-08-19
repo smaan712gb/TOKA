@@ -1,0 +1,63 @@
+name: tests
+
+# Toka claims to work on any machine its user happens to have. That claim
+# was, until this file, verified on exactly one operating system. The
+# matrix is the claim.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} · py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install
+        run: python -m pip install --upgrade pip && pip install -e ".[dev]"
+
+      - name: Test
+        run: pytest -q
+
+      # "No other dependencies, ever" is a promise on the front page. A
+      # convenience import added during a refactor would satisfy every
+      # test above while quietly breaking it, because the dev extra is
+      # already installed here.
+      - name: Confirm no runtime dependencies were added
+        run: >
+          python -c "import importlib.metadata as m;
+          deps = [r for r in (m.requires('tokameter') or []) if 'extra ==' not in r];
+          assert not deps, deps;
+          print('no runtime dependencies')"
+
+  build:
+    name: distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install --upgrade pip build twine
+      - run: python -m build
+
+      # Catches the packaging faults that only show up downstream: a
+      # metadata field PyPI rejects, or an sdist missing a module.
+      - run: python -m twine check dist/*
+      - run: pip install dist/*.whl && python -c "import toka; print(toka.__version__)"
