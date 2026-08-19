@@ -21,7 +21,11 @@ That's it. With no arguments it reads `~/.claude/projects` and prints a report.
 ## What it found
 
 Run against 11.1 billion prompt tokens of real agent traffic — 37 sessions,
-36,311 model requests, $11,039 of spend:
+36,311 model requests, $11,039 of spend.
+
+This is one machine's Claude Code history as it stood at v0.6.0, kept fixed
+rather than refreshed each release: it is a measurement, and a measurement has
+a date. Re-run it on your own logs and you will get your own numbers.
 
 ```
 WHERE THE MONEY WENT
@@ -328,7 +332,13 @@ pytest
 
 ## Status
 
-Early. The measurement layer is real and the numbers hold up; the reporting
-is plain text and the adapter set is small. Issues and adapters welcome.
+Early, but the loop is closed: measure (`toka`), diagnose (`PrefixGuard`), fix
+(`repair`), and compare (`toka --compare`), with a plain-text report and an
+HTML dashboard on the output side.
+
+What is still thin is coverage. Seven adapters is not many, three of them are
+verified against real traffic, and the agents that write no logs at all —
+anything hitting an OpenAI-compatible endpoint directly — are invisible to
+all of it. Issues and adapters welcome.
 
 Apache 2.0.

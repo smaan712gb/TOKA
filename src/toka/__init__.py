@@ -7,6 +7,11 @@ Three parts:
     toka.repair    fix the breaks that carry no risk; propose the rest
 
 "How much", then "why", then "fix it".
+
+Two more sit on top of those and are reached through the CLI rather than
+imported: `toka.compare` runs the analysis across every agent on the
+machine, and `toka.dashboard` renders the result as a page for people who
+do not read terminals.
 """
 
 from .guard import CheckReport, PrefixGuard, render, sorted_keys_warning
