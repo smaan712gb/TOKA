@@ -129,10 +129,20 @@ directive to the provider, not content. `verify()` re-renders both versions
 and asserts the model-visible text is byte-identical, and `repair_safely()`
 raises rather than returning a result that fails that check.
 
+The breakpoint goes on the last system block, which caches the tools with it
+— tools render first. With no system prompt at all it goes on the last tool
+instead, because that is where the stable prefix ends and a request with tools
+and no system is otherwise the one arrangement that gets no caching at all.
+
 **Tier 2 is never automatic.** Hoisting a timestamp out of the system prompt
 is the single biggest win available — and it moves text the model was
 conditioned on. That is a judgment call about your prompt, so Toka describes
 it and stops.
+
+Tool definitions are scanned too, including nested schema descriptions, and
+flagged more urgently: a date that varies inside a tool takes the system prompt
+and the whole message history down with it, where the same date in the system
+prompt costs only the history.
 
 A repair pass that saves 20% and breaks one task in fifty is a bad trade, and
 token metrics alone will happily call it a win.

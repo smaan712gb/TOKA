@@ -99,7 +99,7 @@ def repair(
     if place_cache_control:
         new_system, new_tools = _place_breakpoint(new_system, new_tools, changes)
 
-    _propose_volatile_hoists(new_system, changes)
+    _propose_volatile_hoists(new_system, new_tools, changes)
 
     return RepairResult(
         system=new_system, tools=new_tools, messages=new_messages, changes=changes
@@ -184,15 +184,22 @@ def _place_breakpoint(system, tools, changes: list[Change]):
     """Put `cache_control` on the last stable block.
 
     Tools render before system, so a breakpoint on the final system block
-    caches both together. Adding the directive changes nothing the model
-    reads — it is an instruction to the provider, not content.
+    caches both together — that is the best available placement and the
+    one preferred here. Adding the directive changes nothing the model
+    reads; it is an instruction to the provider, not content.
+
+    With no system prompt the last tool is the end of the stable region,
+    so the breakpoint goes there instead. Returning early in that case —
+    as this did — left a tools-only request with no breakpoint at all,
+    which is the one arrangement where the caller gets no caching
+    whatsoever.
     """
+    if _already_marked(tools) or _already_marked(_as_block_list(system)):
+        return system, tools  # caller placed one deliberately; leave it alone
+
     blocks = _as_block_list(system)
     if not blocks:
-        return system, tools
-
-    if any(isinstance(b, dict) and b.get("cache_control") for b in blocks):
-        return system, tools  # caller already placed one; leave it alone
+        return system, _mark_last_tool(tools, changes)
 
     last = blocks[-1]
     if not isinstance(last, dict):
@@ -212,6 +219,38 @@ def _place_breakpoint(system, tools, changes: list[Change]):
     return blocks, tools
 
 
+def _already_marked(items) -> bool:
+    return any(isinstance(i, dict) and i.get("cache_control") for i in items or [])
+
+
+def _mark_last_tool(tools, changes: list[Change]):
+    """Breakpoint on the final tool definition.
+
+    Only reached when there is no system prompt. The tools block is then
+    the whole of the stable prefix, so this caches everything there is to
+    cache.
+    """
+    if not tools:
+        return tools
+    last = tools[-1]
+    if not isinstance(last, dict):
+        return tools  # nothing to attach a directive to
+
+    marked = dict(last)
+    marked["cache_control"] = {"type": "ephemeral"}
+    changes.append(
+        Change(
+            tier=1,
+            where=f"tools[{len(tools) - 1}]:{last.get('name') or '<unnamed>'}",
+            what=(
+                "cache_control added at the end of the tool list — with no "
+                "system prompt, that is where the stable prefix ends"
+            ),
+        )
+    )
+    return tools[:-1] + [marked]
+
+
 def _as_block_list(system) -> list:
     if system is None:
         return []
@@ -222,14 +261,42 @@ def _as_block_list(system) -> list:
     return [system]
 
 
-def _propose_volatile_hoists(system, changes: list[Change]) -> None:
-    """Flag volatile content in the system prompt without moving it.
+def _propose_volatile_hoists(system, tools, changes: list[Change]) -> None:
+    """Flag volatile content without moving it.
 
     This is the single largest cause of churn, and also the one fix that
     reorders text the model was conditioned on. Proposing it keeps the
     decision with the person who knows whether position matters here.
+
+    Tools are scanned first because they render first: a date that varies
+    inside a tool definition takes the system prompt and the entire
+    message history down with it, where the same date in the system
+    prompt costs only the history. Scanning system alone — as this did —
+    missed the more expensive of the two.
     """
     from .guard import _INVALIDATORS
+
+    for i, tool in enumerate(tools or []):
+        if not isinstance(tool, dict):
+            continue
+        hit = _first_invalidator(_scannable_text(tool), _INVALIDATORS)
+        if hit is None:
+            continue
+        label, match = hit
+        changes.append(
+            Change(
+                tier=2,
+                where=f"tools[{i}]:{tool.get('name') or '<unnamed>'}",
+                what=(
+                    f"{label} ({match!r}) in the tool definition — if it varies "
+                    "between turns it invalidates the entire prompt, not just "
+                    "the tools block, because tools render first. Keep the "
+                    "definition fixed and pass anything that changes as an "
+                    "argument instead."
+                ),
+                requires_consent=True,
+            )
+        )
 
     for i, block in enumerate(_as_block_list(system)):
         text = block.get("text") if isinstance(block, dict) else str(block)
@@ -251,6 +318,45 @@ def _propose_volatile_hoists(system, changes: list[Change]) -> None:
                     )
                 )
                 break
+
+
+def _scannable_text(tool: dict) -> str:
+    """Every string in a tool definition, flattened.
+
+    Volatility hides in nested schema descriptions and enum values as
+    readily as in the top-level description, and all of it is bytes in
+    the prefix.
+    """
+    out: list[str] = []
+
+    def walk(node) -> None:
+        if isinstance(node, str):
+            out.append(node)
+        elif isinstance(node, dict):
+            for key, value in node.items():
+                if key != "cache_control":  # a directive, not content
+                    walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(tool)
+    return "\n".join(out)
+
+
+def _first_invalidator(text: str, invalidators) -> tuple[str, str] | None:
+    """The most specific volatile-looking pattern in `text`, if any.
+
+    Only the first four patterns are used. The last two — long
+    identifiers and bare counters — match ordinary prose and schema
+    values constantly, and a proposal that fires on every tool is a
+    proposal nobody reads.
+    """
+    for label, pattern in invalidators[:4]:
+        match = pattern.search(text)
+        if match:
+            return label, match.group(0)[:32]
+    return None
 
 
 def _copy(obj):

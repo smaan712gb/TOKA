@@ -18,7 +18,7 @@ from .guard import CheckReport, PrefixGuard, render, sorted_keys_warning
 from .repair import RepairResult, repair, repair_safely, verify
 from .record import Request
 
-__version__ = "0.9.0"
+__version__ = "0.10.0"
 
 __all__ = [
     "PrefixGuard",

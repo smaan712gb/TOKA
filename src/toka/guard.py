@@ -322,6 +322,23 @@ def _tool_name(tool) -> str | None:
     return None
 
 
+def _without_directives(obj):
+    """Drop `cache_control` wherever it appears.
+
+    It tells the provider where to put a breakpoint; the model never sees
+    it. Leaving it in would make moving a breakpoint look like the prompt
+    changed — and would make `toka.repair` fail its own safety check the
+    moment it placed one on a tool.
+    """
+    if isinstance(obj, dict):
+        return {
+            k: _without_directives(v) for k, v in obj.items() if k != "cache_control"
+        }
+    if isinstance(obj, list):
+        return [_without_directives(v) for v in obj]
+    return obj
+
+
 def _canonical(obj) -> str:
     """Stable serialisation, so key order never registers as a break.
 
@@ -332,7 +349,12 @@ def _canonical(obj) -> str:
     `sorted_keys_warning`.
     """
     try:
-        return json.dumps(obj, sort_keys=True, separators=(",", ":"), default=str)
+        return json.dumps(
+            _without_directives(obj),
+            sort_keys=True,
+            separators=(",", ":"),
+            default=str,
+        )
     except (TypeError, ValueError):
         return str(obj)
 

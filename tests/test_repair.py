@@ -109,3 +109,79 @@ def test_verify_catches_a_repair_that_alters_text():
     result = repair(**original)
     result.system = [{"type": "text", "text": "TAMPERED"}]
     assert not verify(original, result)
+
+
+def test_a_tools_only_request_still_gets_a_breakpoint():
+    """With no system prompt the tool list is the entire stable prefix.
+    Skipping it left the one arrangement that gets no caching at all."""
+    tools = [{"name": "a", "description": "d"}, {"name": "b", "description": "d"}]
+    result = repair(system=None, tools=tools, messages=MESSAGES)
+
+    assert result.tools[-1]["cache_control"] == {"type": "ephemeral"}
+    assert not result.tools[0].get("cache_control")
+    assert any("stable prefix ends" in c.what for c in result.applied)
+
+
+def test_a_breakpoint_on_a_tool_survives_the_safety_check():
+    """cache_control is a directive to the provider, not text the model
+    reads — so placing one must not count as altering the prompt."""
+    original = {"system": None, "tools": list(TOOLS), "messages": MESSAGES}
+    result = repair_safely(**original)  # raises if it does
+    assert verify(original, result)
+
+
+def test_system_still_wins_the_breakpoint_when_there_is_one():
+    """Tools render before system, so a breakpoint on the last system
+    block caches both. Marking a tool as well would waste one."""
+    result = repair(system=SYSTEM, tools=TOOLS, messages=MESSAGES)
+    assert result.system[-1]["cache_control"] == {"type": "ephemeral"}
+    assert not any(t.get("cache_control") for t in result.tools)
+
+
+def test_an_existing_breakpoint_on_a_tool_is_left_alone():
+    tools = [
+        {"name": "a", "description": "d"},
+        {"name": "b", "description": "d", "cache_control": {"type": "ephemeral"}},
+    ]
+    result = repair(system=None, tools=tools, messages=MESSAGES)
+    assert not result.tools[0].get("cache_control")
+    assert result.tools[1]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_volatile_content_in_a_tool_is_proposed_and_named_as_worse():
+    """A varying date in a tool definition takes the system prompt and
+    the whole history with it. Scanning only system missed it."""
+    tools = [{"name": "search", "description": "Index built 2026-08-19T10:33:01Z"}]
+    result = repair(system="stable prompt", tools=tools, messages=MESSAGES)
+
+    hoists = [c for c in result.proposed if c.where.startswith("tools")]
+    assert hoists, "volatile content in a tool must be flagged"
+    assert hoists[0].tier == 2 and hoists[0].requires_consent
+    assert "tools render first" in hoists[0].what
+    # and the definition is untouched
+    assert "2026-08-19T10:33:01Z" in result.tools[0]["description"]
+
+
+def test_volatility_nested_in_a_schema_is_found():
+    """It is bytes in the prefix wherever it sits."""
+    tools = [
+        {
+            "name": "q",
+            "input_schema": {
+                "properties": {"since": {"description": "after 2026-08-19T10:33:01Z"}}
+            },
+        }
+    ]
+    result = repair(system=None, tools=tools, messages=MESSAGES)
+    assert any(c.where.startswith("tools") for c in result.proposed)
+
+
+def test_moving_a_breakpoint_is_not_a_prefix_break():
+    """The provider reads cache_control; the model never does. If the
+    guard saw it, every repair that placed one would report a break."""
+    a = [{"name": "t", "description": "d"}]
+    b = [{"name": "t", "description": "d", "cache_control": {"type": "ephemeral"}}]
+
+    guard = PrefixGuard()
+    guard.check(system=SYSTEM, tools=a)
+    assert guard.check(system=SYSTEM, tools=b).stable
