@@ -22,6 +22,11 @@ def main(argv: list[str] | None = None) -> int:
         description="Measure where an agent's token spend actually goes.",
     )
     parser.add_argument(
+        "--compare",
+        action="store_true",
+        help="analyse every agent found on this machine, side by side",
+    )
+    parser.add_argument(
         "path",
         nargs="?",
         type=Path,
@@ -34,6 +39,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--top", type=int, default=10, help="worst-N sessions to list")
     parser.add_argument("--out", type=Path, help="also write the report here")
     args = parser.parse_args(argv)
+
+    if args.compare:
+        from .compare import collect, render as render_compare
+
+        extra = {"(supplied)": args.path} if args.path else None
+        print("discovering agents...", file=sys.stderr)
+        rows = collect(extra)
+        print(render_compare(rows))
+        return 0
 
     root = args.path or default_transcript_root()
     if not root.exists():
