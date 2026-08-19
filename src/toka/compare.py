@@ -75,7 +75,7 @@ class Row:
     @property
     def confidence(self) -> str:
         """What the source lets us see. Drives how far to trust the row."""
-        if self.report.blind_sessions and not self.report.sessions:
+        if self.cache_blind:
             return "no cache data"
         if self.report.blind_sessions:
             return "partial — some sources blind"
@@ -111,14 +111,14 @@ def collect(extra: dict[str, Path] | None = None) -> list[Row]:
 
 
 def render(rows: list[Row]) -> str:
-    from .report import _money, _tokens
+    from .report import _tokens
 
     if not rows:
         return (
             "No agent logs found.\n\n"
             "Toka looks in the default locations for Claude Code, Cline,\n"
             "Roo Code, Continue and Aider. Point it at a directory instead:\n"
-            "  toka compare --path /your/logs"
+            "  toka --compare /your/logs"
         )
 
     out: list[str] = []
