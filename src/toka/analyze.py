@@ -27,7 +27,7 @@ from .pricing import (
     CACHE_WRITE_5M_MULT,
     resolve,
 )
-from .ingest import Request
+from .record import Request
 
 # A cache entry is gone once its TTL lapses, so a rewrite after a longer
 # idle gap is expiry, not churn. Only churn is recoverable by better
@@ -50,6 +50,7 @@ class SessionStats:
     session: str
     requests: int = 0
     model: str | None = None
+    provider: str = "anthropic"
     fresh_input: int = 0
     cache_write_5m: int = 0
     cache_write_1h: int = 0
@@ -95,7 +96,12 @@ class SessionStats:
 @dataclass
 class Report:
     sessions: dict[str, SessionStats] = field(default_factory=dict)
-    unknown_models: set[str] = field(default_factory=set)
+    # Anthropic ids we did not recognise exactly, priced by prefix match.
+    approximated_models: set[str] = field(default_factory=set)
+    # Models with no rate card at all — excluded from every dollar figure.
+    unpriced_models: set[str] = field(default_factory=set)
+    unpriced_requests: int = 0
+    unpriced_tokens: int = 0
 
     # Aggregate cost split by billing category.
     cost_fresh_input: float = 0.0
@@ -162,22 +168,31 @@ def analyze(requests: list[Request]) -> Report:
             if ts is not None:
                 prev_ts = ts
 
-            price, known = resolve(req.model)
-            if not known and req.model:
-                report.unknown_models.add(req.model)
+            price, exact = resolve(req.model, req.provider)
             if stats.model is None and req.model:
                 stats.model = req.model
+            stats.provider = req.provider
 
-            p_in = price.input_per_mtok / 1_000_000
-            p_out = price.output_per_mtok / 1_000_000
+            if price is None:
+                # No rate card for this provider — count the tokens, keep
+                # them out of every dollar figure rather than guessing.
+                report.unpriced_requests += 1
+                report.unpriced_tokens += req.context_size + req.output
+                if req.model:
+                    report.unpriced_models.add(req.model)
+            else:
+                if not exact and req.model:
+                    report.approximated_models.add(req.model)
+                p_in = price.input_per_mtok / 1_000_000
+                p_out = price.output_per_mtok / 1_000_000
 
-            report.cost_fresh_input += req.fresh_input * p_in
-            report.cost_cache_write += (
-                req.cache_write_5m * p_in * CACHE_WRITE_5M_MULT
-                + req.cache_write_1h * p_in * 2.0
-            )
-            report.cost_cache_read += req.cache_read * p_in * CACHE_READ_MULT
-            report.cost_output += req.output * p_out
+                report.cost_fresh_input += req.fresh_input * p_in
+                report.cost_cache_write += (
+                    req.cache_write_5m * p_in * CACHE_WRITE_5M_MULT
+                    + req.cache_write_1h * p_in * 2.0
+                )
+                report.cost_cache_read += req.cache_read * p_in * CACHE_READ_MULT
+                report.cost_output += req.output * p_out
 
             stats.requests += 1
             stats.fresh_input += req.fresh_input
@@ -191,7 +206,10 @@ def analyze(requests: list[Request]) -> Report:
                 stats.missable_input += req.fresh_input
 
         # Price the two recoverable mechanisms at this session's model.
-        price, _ = resolve(stats.model)
+        price, _ = resolve(stats.model, stats.provider)
+        if price is None:
+            report.sessions[session] = stats
+            continue
         p_in = price.input_per_mtok / 1_000_000
 
         # A missed token paid 1.0x where a hit costs 0.1x.

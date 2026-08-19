@@ -106,9 +106,17 @@ def render(report: Report, top: int = 10) -> str:
             )
         add("")
 
-    if report.unknown_models:
-        add("NOTE — unpriced models, billed at Opus 5 rates:")
-        for model in sorted(report.unknown_models):
+    if report.approximated_models:
+        add("NOTE — Anthropic ids priced by prefix match:")
+        for model in sorted(report.approximated_models):
+            add(f"  {model}")
+        add("")
+
+    if report.unpriced_requests:
+        add("NOTE — no rate card, excluded from all dollar figures:")
+        add(f"  {report.unpriced_requests:,} requests, "
+            f"{_tokens(report.unpriced_tokens)} tokens")
+        for model in sorted(report.unpriced_models):
             add(f"  {model}")
         add("")
 

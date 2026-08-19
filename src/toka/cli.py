@@ -6,8 +6,9 @@ import argparse
 import sys
 from pathlib import Path
 
+from .adapters import ADAPTERS, parse_all
 from .analyze import analyze
-from .ingest import find_transcripts, read_all
+from .ingest import find_transcripts
 from .report import render
 
 
@@ -51,11 +52,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: no .jsonl transcripts found under {root}", file=sys.stderr)
         return 1
 
-    print(f"reading {len(paths)} transcript(s)...", file=sys.stderr)
-    requests = read_all(paths)
+    print(f"scanning {len(paths)} file(s)...", file=sys.stderr)
+    requests, used, skipped = parse_all(paths)
     if not requests:
-        print("error: no billed model requests found", file=sys.stderr)
+        print(
+            "error: no billed model requests found. Supported formats: "
+            + ", ".join(a.name for a in ADAPTERS),
+            file=sys.stderr,
+        )
         return 1
+
+    for name, count in used.most_common():
+        print(f"  {name}: {count} file(s)", file=sys.stderr)
+    if skipped:
+        print(f"  unrecognised: {len(skipped)} file(s)", file=sys.stderr)
 
     text = render(analyze(requests), top=args.top)
     print(text)

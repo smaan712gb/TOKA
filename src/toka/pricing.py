@@ -39,22 +39,32 @@ PRICES: dict[str, ModelPrice] = {
     "claude-haiku-4-5": ModelPrice(1.0, 5.0, 4096),
 }
 
-# Anything not in PRICES falls back to this so a run never dies on an
-# unrecognised id. Unknown models are surfaced in the report.
-FALLBACK = PRICES["claude-opus-5"]
+# Used only for Anthropic records whose exact id we do not recognise —
+# a new snapshot, say. Guessing within a provider whose rate card we hold
+# is reasonable; guessing across providers is not, so non-Anthropic models
+# resolve to None and are excluded from cost rather than priced by
+# analogy. Their token counts are still reported.
+ANTHROPIC_FALLBACK = PRICES["claude-opus-5"]
 
 
-def resolve(model: str | None) -> tuple[ModelPrice, bool]:
-    """Return (price, known). Bare ids are matched first, then prefix match
-    so dated snapshots like `claude-haiku-4-5-20251001` resolve correctly."""
-    if not model:
-        return FALLBACK, False
-    if model in PRICES:
-        return PRICES[model], True
-    for known, price in PRICES.items():
-        if model.startswith(known):
-            return price, True
-    return FALLBACK, False
+def resolve(
+    model: str | None, provider: str = "anthropic"
+) -> tuple[ModelPrice | None, bool]:
+    """Return (price, exact). `price` is None when the model cannot be
+    priced without fabricating a rate.
+
+    Bare ids match first, then prefix, so dated snapshots such as
+    `claude-haiku-4-5-20251001` resolve correctly.
+    """
+    if model:
+        if model in PRICES:
+            return PRICES[model], True
+        for known, price in PRICES.items():
+            if model.startswith(known):
+                return price, True
+    if provider == "anthropic":
+        return ANTHROPIC_FALLBACK, False
+    return None, False
 
 
 def cost(

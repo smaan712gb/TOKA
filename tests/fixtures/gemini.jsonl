@@ -1,0 +1,2 @@
+{"sessionId":"g1","timestamp":"2026-08-19T10:00:00Z","modelVersion":"gemini-2.5-pro","usageMetadata":{"promptTokenCount":8000,"candidatesTokenCount":300,"cachedContentTokenCount":0,"thoughtsTokenCount":120}}
+{"sessionId":"g1","timestamp":"2026-08-19T10:01:00Z","modelVersion":"gemini-2.5-pro","usageMetadata":{"promptTokenCount":9500,"candidatesTokenCount":250,"cachedContentTokenCount":7800}}
