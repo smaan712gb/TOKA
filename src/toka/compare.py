@@ -109,7 +109,7 @@ def collect(extra: dict[str, Path] | None = None) -> list[Row]:
 
 
 def render(rows: list[Row]) -> str:
-    from .report import _tokens
+    from .report import _plain, _tokens
 
     if not rows:
         return (
@@ -134,7 +134,7 @@ def render(rows: list[Row]) -> str:
         hit = "not logged" if r.hit_rate is None else f"{r.hit_rate:.1f}%"
         rec = "—" if r.cache_blind else f"{r.recoverable_pct:.1f}%"
         add(
-            f"  {r.agent:<14} {r.sessions:>9,} {r.requests:>9,} "
+            f"  {_plain(r.agent):<14} {r.sessions:>9,} {r.requests:>9,} "
             f"{_tokens(r.prompt_tokens):>11} {hit:>9} {rec:>12}"
         )
     add("")
@@ -142,7 +142,7 @@ def render(rows: list[Row]) -> str:
     add("  " + "-" * 74)
     for r in rows:
         note = NOTES.get(r.agent, "")
-        line = f"  {r.agent:<14} {r.confidence}"
+        line = f"  {_plain(r.agent):<14} {r.confidence}"
         if note:
             line += f" — {note}"
         add(line)

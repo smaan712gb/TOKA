@@ -134,7 +134,20 @@ def dig(obj: dict, *path: str):
 
 
 def as_int(value) -> int:
+    """Coerce a logged token count to a number we can do arithmetic on.
+
+    Logs are written by other people's code, and buggy wrappers emit
+    things a token count cannot be. `1e400` parses as float infinity and
+    used to raise OverflowError out of the adapter, killing the analysis
+    of every other file in the run. A negative count is equally
+    impossible.
+
+    Anything unusable becomes zero, which can only ever lower a total.
+    That keeps a corrupt record from inventing spend — the failure
+    direction the whole tool is built to avoid.
+    """
     try:
-        return int(value or 0)
-    except (TypeError, ValueError):
-        return 0
+        number = int(value or 0)
+    except (TypeError, ValueError, OverflowError):
+        return 0  # None, a string, NaN, or infinity
+    return number if number > 0 else 0

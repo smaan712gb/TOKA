@@ -2,7 +2,28 @@
 
 from __future__ import annotations
 
+import re
+
 from .analyze import Report, worst_sessions
+
+# C0 and C1 control characters, minus tab and newline.
+_CONTROL_CHARS = "".join(
+    chr(c)
+    for c in list(range(0x00, 0x09)) + list(range(0x0B, 0x20)) + list(range(0x7F, 0xA0))
+)
+_CONTROL = re.compile("[" + re.escape(_CONTROL_CHARS) + "]")
+
+
+def _plain(text: str) -> str:
+    """Strip control characters out of anything read from a log.
+
+    Session ids, model names and agent names come from files Toka did not
+    write. ANSI escapes in one of them can clear the screen, retitle the
+    terminal, or overwrite lines already printed — which means
+    fabricating output the reader has every reason to trust. Names are
+    for identifying things, so nothing is lost by removing them.
+    """
+    return _CONTROL.sub("", str(text))
 
 
 def _money(x: float) -> str:
@@ -106,7 +127,7 @@ def render(report: Report, top: int = 10) -> str:
             f"{'amp':>7} {'hit':>6} {'recoverable':>13}")
         for s in ranked:
             add(
-                f"  {s.session[:12]:<14} {s.requests:>6,} "
+                f"  {_plain(s.session)[:12]:<14} {s.requests:>6,} "
                 f"{_tokens(s.peak_context):>10} "
                 f"{s.write_amplification:>6.2f}x "
                 f"{100 * s.cache_hit_rate:>5.1f}% "
@@ -117,7 +138,7 @@ def render(report: Report, top: int = 10) -> str:
     if report.approximated_models:
         add("NOTE — Anthropic ids priced by prefix match:")
         for model in sorted(report.approximated_models):
-            add(f"  {model}")
+            add(f"  {_plain(model)}")
         add("")
 
     if report.blind_sessions:
@@ -133,7 +154,7 @@ def render(report: Report, top: int = 10) -> str:
         add(f"  {report.unpriced_requests:,} requests, "
             f"{_tokens(report.unpriced_tokens)} tokens")
         for model in sorted(report.unpriced_models):
-            add(f"  {model}")
+            add(f"  {_plain(model)}")
         add("")
 
     add("Method: 'cache misses' prices fresh input after a session's first")

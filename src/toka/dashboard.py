@@ -35,7 +35,7 @@ import html
 from dataclasses import dataclass
 
 from .compare import Row
-from .report import _money, _tokens
+from .report import _money, _plain, _tokens
 
 # Validated with the dataviz palette checker against each mode's surface.
 # Light passes every check with a contrast WARN on aqua (2.74:1) and
@@ -109,7 +109,7 @@ def _headline(rows: list[Row]) -> str:
     if blind:
         note = (
             '<p class="caveat">Excludes '
-            + html.escape(", ".join(blind))
+            + html.escape(_plain(", ".join(blind)))
             + " — those logs record no cache information at all, so nothing "
             "about their spend can be called avoidable either way.</p>"
         )
@@ -240,7 +240,7 @@ def _causes(rows: list[Row]) -> str:
   <h2>Why the cache was rewritten</h2>
   <p class="lede">Not available for the agents found.</p>
   <p class="caveat">
-    {html.escape(who)} reports far more cache reads than writes. A read
+    {html.escape(_plain(who))} reports far more cache reads than writes. A read
     requires a prior write, so those write counts are incomplete — and an
     incomplete count would show a reassuring 0% churn rather than an unknown
     one. The chart is withheld rather than guessed at. The avoidable-spend
@@ -296,9 +296,9 @@ def _causes(rows: list[Row]) -> str:
     if withheld:
         note = (
             '<p class="caveat">Measured on '
-            + html.escape(", ".join(r.agent for r in usable))
+            + html.escape(_plain(", ".join(r.agent for r in usable)))
             + " only. "
-            + html.escape(", ".join(withheld))
+            + html.escape(_plain(", ".join(withheld)))
             + " under-reports its cache writes, so including it would "
             "understate churn rather than describe it.</p>"
         )
@@ -321,7 +321,7 @@ def _leaderboard(rows: list[Row]) -> str:
     body = "".join(
         f"""
       <tr>
-        <td>{html.escape(r.agent)}</td>
+        <td>{html.escape(_plain(r.agent))}</td>
         <td class="num">{r.sessions:,}</td>
         <td class="num">{r.requests:,}</td>
         <td class="num">{html.escape(_tokens(r.prompt_tokens))}</td>
@@ -366,7 +366,7 @@ def _method(rows: list[Row]) -> str:
     if unpriced:
         extra = (
             '<p class="caveat">No published rate card for '
-            + html.escape(", ".join(unpriced))
+            + html.escape(_plain(", ".join(unpriced)))
             + ". Those requests are counted in the token totals and left out "
             "of every dollar figure — pricing them by analogy with a provider "
             "we do have rates for would be a guess wearing a dollar sign.</p>"
