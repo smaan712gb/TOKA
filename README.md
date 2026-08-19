@@ -103,11 +103,39 @@ Formats are detected automatically — you never name one.
 
 ## Supported agents
 
-| Adapter | Covers |
-|---|---|
-| `claude-code` | Claude Code session transcripts |
-| `openai-compatible` | The OpenAI API and every gateway that mirrors its response shape — LiteLLM, OpenRouter, Helicone, Langfuse exports, most homegrown wrappers |
-| `gemini` | Google `usageMetadata` |
+| Adapter | Covers | Verified against real traffic |
+|---|---|---|
+| `claude-code` | Claude Code session transcripts | yes |
+| `cline` | Cline / Roo task history (VS Code global storage) | yes |
+| `continue` | Continue `dev_data/tokensGenerated.jsonl` | yes |
+| `openai-compatible` | The OpenAI API and every gateway mirroring its response shape — LiteLLM, OpenRouter, Helicone, Langfuse exports, Azure | fixtures only |
+| `gemini` | Google `usageMetadata` | fixtures only |
+| `aider` | `.aider.chat.history.md` | **no — built from docs** |
+| `generic` | Any JSON with token counts, found by field-name pattern at any depth. Last resort; always loses to a purpose-built adapter | by design |
+
+**Verification status is not decoration.** Building the Cline adapter against
+real files caught two bugs a format-guess would have shipped silently: Cline
+is a *router*, so hardcoding a provider prices GPT tasks at Anthropic rates,
+and routed model ids (`anthropic/claude-sonnet-4.5`) fell through to the
+unpriced path entirely. Treat unverified adapters as provisional.
+
+### What Toka refuses to tell you
+
+Every adapter declares what its source can actually observe, and claims that
+outrun the data are suppressed rather than estimated:
+
+- **Cline** reports 1.75B cache reads against 14.5K writes. Reads require a
+  prior write, so the write counts are incomplete — churn analysis is
+  suppressed rather than reported as a reassuring 0%.
+- **Continue** and **Aider** log no cache fields at all. Their prompt tokens
+  are *not* counted as misses, because a log that never mentions caching is
+  not evidence that caching failed.
+- **GitHub Copilot** records no token accounting whatsoever — it bills
+  flat-rate. There is deliberately no adapter; an adapter that produces
+  nothing is worse than an honest gap.
+
+A tool that says "you're fine" from missing data is worse than one that says
+nothing.
 
 **A caveat that matters:** only Anthropic bills cache writes separately. On
 OpenAI and Google, cached tokens are simply discounted with no write premium,

@@ -13,10 +13,12 @@ from typing import Iterator
 
 from ..record import Request
 from .base import Adapter, sniff
+from .aider import AiderAdapter
 from .claude_code import ClaudeCodeAdapter
 from .cline import ClineAdapter
 from .continue_dev import ContinueAdapter
 from .gemini import GeminiAdapter
+from .generic import GenericAdapter
 from .openai_compat import OpenAICompatAdapter
 
 ADAPTERS: list[Adapter] = [
@@ -25,6 +27,10 @@ ADAPTERS: list[Adapter] = [
     ContinueAdapter(),
     OpenAICompatAdapter(),
     GeminiAdapter(),
+    # Filename-routed (not JSON): checked before sniffing.
+    AiderAdapter(),
+    # Weakest claim, always last resort.
+    GenericAdapter(),
 ]
 
 # Below this, we assume nothing recognised the file rather than guessing.
@@ -32,7 +38,17 @@ MIN_CONFIDENCE = 0.5
 
 
 def adapter_for(path: Path) -> Adapter | None:
-    """Best adapter for a file, or None if no format is recognised."""
+    """Best adapter for a file, or None if no format is recognised.
+
+    Filename-routed adapters are checked first: they handle formats the
+    JSON sniffer cannot read at all (markdown, sqlite), so sniffing them
+    would always score zero.
+    """
+    for adapter in ADAPTERS:
+        claims = getattr(adapter, "claims", None)
+        if claims is not None and claims(path):
+            return adapter
+
     sample = sniff(path)
     if not sample:
         return None

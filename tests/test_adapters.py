@@ -30,13 +30,17 @@ def test_detection_routes_to_the_right_adapter(filename, expected):
     assert adapter_for(FIXTURES / filename).name == expected
 
 
-def test_adapters_do_not_claim_each_others_formats():
-    """Detection must be exclusive, or the registry picks by accident."""
-    for filename in ("openai.jsonl", "gemini.jsonl"):
-        from toka.adapters.base import sniff
+def test_purpose_built_adapters_do_not_claim_each_others_formats():
+    """Detection must be exclusive among adapters that know a format, or
+    the registry picks by accident. `generic` is exempt — claiming broadly
+    at low confidence is its entire job, and it always loses the tie."""
+    from toka.adapters.base import sniff
 
+    for filename in ("openai.jsonl", "gemini.jsonl"):
         sample = sniff(FIXTURES / filename)
-        confident = [a.name for a in ADAPTERS if a.detect(sample) >= 0.5]
+        confident = [
+            a.name for a in ADAPTERS if a.name != "generic" and a.detect(sample) >= 0.5
+        ]
         assert len(confident) == 1, f"{filename} claimed by {confident}"
 
 
@@ -150,3 +154,58 @@ def test_blind_source_never_reports_recoverable_waste():
     report = analyze(reqs)
     assert report.total_cost > 0      # cost is still real
     assert report.recoverable == 0.0  # but no waste is claimed
+
+
+def test_generic_never_outranks_a_purpose_built_adapter():
+    """The generic adapter would parse most files. It must always lose to
+    an adapter that knows the format's semantics."""
+    from toka.adapters.base import sniff
+    from toka.adapters.generic import GenericAdapter
+
+    for filename in ("openai.jsonl", "gemini.jsonl"):
+        sample = sniff(FIXTURES / filename)
+        assert GenericAdapter().detect(sample) < 0.9
+        assert adapter_for(FIXTURES / filename).name != "generic"
+
+
+def test_generic_finds_nested_token_counts():
+    reqs = list(parse(FIXTURES / "homegrown.jsonl"))
+    assert len(reqs) == 2
+    r = reqs[0]
+    assert r.fresh_input == 500 and r.output == 80
+    assert r.cache_read == 9000 and r.total_writes == 1200
+    assert r.provider == "anthropic"      # inferred from model id
+    assert r.cache_visible                # cache fields were present
+
+
+def test_generic_marks_cache_invisible_when_no_cache_fields_found():
+    """A log that never mentions caching is not evidence caching failed."""
+    import json, tempfile, os
+    from toka.adapters.generic import GenericAdapter
+
+    fd, p = tempfile.mkstemp(suffix=".jsonl")
+    with os.fdopen(fd, "w") as fh:
+        fh.write(json.dumps({"model": "claude-opus-5",
+                             "prompt_tokens": 100, "completion_tokens": 20}) + "\n")
+    try:
+        reqs = list(GenericAdapter().parse(Path(p)))
+        assert len(reqs) == 1 and not reqs[0].cache_visible
+    finally:
+        os.unlink(p)
+
+
+def test_aider_parses_human_formatted_counts():
+    reqs = list(parse(FIXTURES / ".aider.chat.history.md"))
+    assert len(reqs) == 2
+    assert reqs[0].fresh_input == 3100 and reqs[0].output == 226
+    assert reqs[1].fresh_input == 12000 and reqs[1].output == 1400
+    assert reqs[0].model == "gpt-4o"
+    assert all(not r.cache_visible for r in reqs)  # aider logs no caching
+
+
+def test_unverified_adapters_declare_themselves():
+    """Adapters not tested against real traffic must say so, so their
+    numbers are not mistaken for verified ones."""
+    from toka.adapters.aider import AiderAdapter
+
+    assert AiderAdapter().verified is False

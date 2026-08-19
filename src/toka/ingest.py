@@ -12,7 +12,7 @@ from .adapters import parse_all
 from .record import Request
 
 # Formats worth sniffing. Everything else is skipped without reading.
-SUFFIXES = (".jsonl", ".ndjson", ".json")
+SUFFIXES = (".jsonl", ".ndjson", ".json", ".md")
 
 # Directories that never contain transcripts but are expensive to walk.
 SKIP_DIRS = {"node_modules", ".git", "__pycache__", ".venv", "venv", "dist", "build"}
