@@ -40,15 +40,14 @@ You do not need to wait for an adapter.
 ## Install
 
 ```bash
-pip install git+https://github.com/smaan712gb/TOKA
+pip install tokameter
 ```
 
-The command is `toka` and the import is `import toka`, whichever way you
-install it.
+The command is `toka` and the import is `import toka`.
 
-> **Why not `pip install toka`?** That name on PyPI belongs to an unrelated
-> project, so it would install something else entirely. Toka publishes as
-> **`tokameter`**; until that release is out, install from GitHub as above.
+> **Why `tokameter` and not `toka`?** The name `toka` on PyPI belongs to an
+> unrelated project, so `pip install toka` would get you something else
+> entirely. Only the package name differs — everything you type is `toka`.
 
 ---
 
