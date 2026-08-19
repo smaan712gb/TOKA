@@ -210,10 +210,10 @@ def analyze(requests: list[Request]) -> Report:
 
                 report.cost_fresh_input += req.fresh_input * p_in
                 report.cost_cache_write += (
-                    req.cache_write_5m * p_in * CACHE_WRITE_5M_MULT
-                    + req.cache_write_1h * p_in * 2.0
+                    req.cache_write_5m * p_in * price.cache_write_5m_mult
+                    + req.cache_write_1h * p_in * price.cache_write_1h_mult
                 )
-                report.cost_cache_read += req.cache_read * p_in * CACHE_READ_MULT
+                report.cost_cache_read += req.cache_read * p_in * price.cache_read_mult
                 report.cost_output += req.output * p_out
 
             stats.requests += 1
@@ -247,13 +247,15 @@ def analyze(requests: list[Request]) -> Report:
         # when the source actually reports caching — otherwise fresh
         # input is just "everything", and the figure would be fiction.
         miss = (
-            stats.missable_input * p_in * (1.0 - CACHE_READ_MULT)
+            stats.missable_input * p_in * (1.0 - price.cache_read_mult)
             if stats.cache_visible
             else 0.0
         )
 
         # An excess write paid at least 1.25x where a read costs 0.1x.
-        excess = stats.excess_writes * p_in * (CACHE_WRITE_5M_MULT - CACHE_READ_MULT)
+        excess = stats.excess_writes * p_in * (
+            price.cache_write_5m_mult - price.cache_read_mult
+        )
 
         stats.cost = miss + excess
         report.recoverable_miss += miss

@@ -22,6 +22,14 @@ class ModelPrice:
     output_per_mtok: float
     # Minimum cacheable prefix; shorter prefixes silently do not cache.
     min_cacheable_tokens: int
+    # Cache economics are NOT universal. Anthropic discounts reads to
+    # 0.1x and charges a write premium; OpenAI discounts to ~0.5x with no
+    # write premium; DeepSeek lands near 0.26x. Hardcoding Anthropic's
+    # numbers globally silently misprices every other provider, so each
+    # model carries its own.
+    cache_read_mult: float = CACHE_READ_MULT
+    cache_write_5m_mult: float = CACHE_WRITE_5M_MULT
+    cache_write_1h_mult: float = CACHE_WRITE_1H_MULT
 
 
 # Keyed by the model id as it appears in transcripts.
@@ -106,8 +114,8 @@ def cost(
     p_out = price.output_per_mtok / 1_000_000
     return (
         fresh_input * p_in
-        + cache_write_5m * p_in * CACHE_WRITE_5M_MULT
-        + cache_write_1h * p_in * CACHE_WRITE_1H_MULT
-        + cache_read * p_in * CACHE_READ_MULT
+        + cache_write_5m * p_in * price.cache_write_5m_mult
+        + cache_write_1h * p_in * price.cache_write_1h_mult
+        + cache_read * p_in * price.cache_read_mult
         + output * p_out
     )

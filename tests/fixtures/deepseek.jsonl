@@ -1,0 +1,2 @@
+{"session_id":"d1","created":1785527013,"model":"deepseek-chat","usage":{"prompt_tokens":10000,"completion_tokens":400,"prompt_cache_hit_tokens":9200,"prompt_cache_miss_tokens":800,"total_tokens":10400}}
+{"session_id":"d1","created":1785527090,"model":"deepseek-reasoner","usage":{"prompt_tokens":12000,"completion_tokens":600,"prompt_cache_hit_tokens":11500,"prompt_cache_miss_tokens":500}}

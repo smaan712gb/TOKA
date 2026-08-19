@@ -209,3 +209,28 @@ def test_unverified_adapters_declare_themselves():
     from toka.adapters.aider import AiderAdapter
 
     assert AiderAdapter().verified is False
+
+
+def test_deepseek_cache_fields_are_read():
+    """DeepSeek is OpenAI-compatible on requests but names its cache
+    fields differently and puts them top-level. Missing that branch makes
+    its caching invisible and reads every prompt token as a miss."""
+    reqs = list(parse(FIXTURES / "deepseek.jsonl"))
+    assert len(reqs) == 2
+    assert reqs[0].cache_read == 9200 and reqs[0].fresh_input == 800
+    assert reqs[1].cache_read == 11500 and reqs[1].fresh_input == 500
+    assert all(r.cache_visible for r in reqs)
+
+
+def test_cache_multipliers_are_per_model_not_global():
+    """Cache economics differ by provider — Anthropic reads are 0.1x,
+    OpenAI ~0.5x, DeepSeek ~0.26x. A global constant misprices everyone
+    who is not Anthropic."""
+    from toka.pricing import ModelPrice, cost
+
+    anthropic = ModelPrice(5.0, 25.0, 512)
+    cheap_reads = ModelPrice(5.0, 25.0, 512, cache_read_mult=0.5)
+    kw = dict(fresh_input=0, cache_write_5m=0, cache_write_1h=0,
+              cache_read=1_000_000, output=0)
+    assert cost(anthropic, **kw) == 0.5      # 1M * $5 * 0.1
+    assert cost(cheap_reads, **kw) == 2.5    # 1M * $5 * 0.5

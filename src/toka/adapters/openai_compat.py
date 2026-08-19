@@ -57,8 +57,19 @@ class OpenAICompatAdapter:
 
             prompt = as_int(usage.get("prompt_tokens"))
             cached = as_int(dig(usage, "prompt_tokens_details", "cached_tokens"))
-            # Guard against a logger that double-counts cached inside prompt.
-            fresh = max(0, prompt - cached)
+
+            # DeepSeek is OpenAI-compatible on the request side but names
+            # its cache fields differently and puts them at the top level.
+            # Without this branch its caching is invisible and every
+            # prompt token reads as a miss.
+            ds_hit = usage.get("prompt_cache_hit_tokens")
+            ds_miss = usage.get("prompt_cache_miss_tokens")
+            if ds_hit is not None or ds_miss is not None:
+                cached = as_int(ds_hit)
+                fresh = as_int(ds_miss) if ds_miss is not None else max(0, prompt - cached)
+            else:
+                # Guard against a logger that double-counts cached inside prompt.
+                fresh = max(0, prompt - cached)
 
             session = _first(record, SESSION_KEYS) or fallback_session
             seq = counters.get(session, 0)
