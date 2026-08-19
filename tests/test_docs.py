@@ -11,7 +11,13 @@ already gone stale at least once.
 """
 
 import re
-import tomllib
+# tomllib is stdlib only from 3.11, and pyproject claims support from
+# 3.10. Without this the whole docs suite fails to import there — which
+# is how a supported Python went unverified until CI ran on it.
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python 3.10
+    import tomli as tomllib
 from pathlib import Path
 
 import pytest
@@ -122,3 +128,18 @@ def test_the_documented_package_name_is_the_one_that_would_be_published():
 def test_the_command_and_import_names_stay_stable():
     """The distribution name may change; what users type must not."""
     assert PYPROJECT["project"]["scripts"] == {"toka": "toka.cli:main"}
+
+
+def test_the_oldest_supported_python_is_actually_tested():
+    """`requires-python` is a promise to everyone on that version, and CI
+    is the only place it is kept. Claiming 3.10 while testing only 3.13
+    is how `tomllib` — stdlib from 3.11 — sat in the test suite unnoticed
+    and broke every 3.10 install of the dev extra."""
+    floor = re.search(r"(\d+\.\d+)", PYPROJECT["project"]["requires-python"])
+    assert floor, "requires-python should name a version"
+
+    ci = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    assert f'"{floor.group(1)}"' in ci, (
+        f"pyproject promises Python {floor.group(1)}, "
+        "but the CI matrix does not test it"
+    )
