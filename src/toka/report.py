@@ -68,18 +68,26 @@ def render(report: Report, top: int = 10) -> str:
         median = amps[len(amps) // 2]
         add(f"  write amplification   median {median:>5.2f}x   "
             f"worst {max(amps):.2f}x   (1.00x is ideal)")
-    expiry = sum(s.expiry_writes for s in report.sessions.values())
-    churn = sum(s.excess_writes for s in report.sessions.values())
-    baseline = max(0, writes - expiry - churn)
     add("")
-    add("  rewrites by cause")
-    for label, value in (
-        ("first pass over context", baseline),
-        ("TTL expiry (idle gap)", expiry),
-        ("prefix churn", churn),
-    ):
-        pct = 100.0 * value / writes if writes else 0.0
-        add(f"    {label:<24} {_tokens(value):>10}   {pct:5.1f}%")
+    if not report.write_accounting_reliable:
+        add("  rewrites by cause    UNAVAILABLE")
+        add(f"    This source reports {_tokens(reads)} cache reads against only")
+        add(f"    {_tokens(writes)} writes. Reads require a prior write, so the")
+        add("    write counts are incomplete — not evidence of a stable prefix.")
+        add("    Churn analysis is suppressed; the cache-miss figure below is")
+        add("    unaffected and still holds.")
+    else:
+        expiry = sum(s.expiry_writes for s in report.sessions.values())
+        churn = sum(s.excess_writes for s in report.sessions.values())
+        baseline = max(0, writes - expiry - churn)
+        add("  rewrites by cause")
+        for label, value in (
+            ("first pass over context", baseline),
+            ("TTL expiry (idle gap)", expiry),
+            ("prefix churn", churn),
+        ):
+            pct = 100.0 * value / writes if writes else 0.0
+            add(f"    {label:<24} {_tokens(value):>10}   {pct:5.1f}%")
     add("")
 
     add("RECOVERABLE")

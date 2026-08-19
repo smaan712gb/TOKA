@@ -79,3 +79,34 @@ def test_non_anthropic_models_are_never_priced_by_analogy():
     # An unknown *Anthropic* id may fall back within its own rate card.
     price, exact = resolve("claude-opus-9-unreleased", "anthropic")
     assert price is not None and not exact
+
+
+def test_write_accounting_flagged_unreliable_when_reads_dwarf_writes():
+    """Reads require a prior write. A source reporting many reads and no
+    writes is under-reporting, not showing a stable prefix — claiming 0%
+    churn off that data would tell the user they have no problem."""
+    from toka.record import Request
+
+    def req(seq, read, write):
+        return Request(
+            source="t", provider="anthropic", session="s", seq=seq,
+            timestamp=None, model="claude-opus-5", fresh_input=100,
+            cache_write_5m=write, cache_write_1h=0, cache_read=read, output=10,
+        )
+
+    unreliable = analyze([req(0, 1_000_000, 0), req(1, 1_000_000, 100)])
+    assert not unreliable.write_accounting_reliable
+
+    reliable = analyze([req(0, 10_000, 5_000), req(1, 10_000, 5_000)])
+    assert reliable.write_accounting_reliable
+
+
+def test_cline_router_infers_provider_from_model_not_adapter():
+    """Cline routes to any model. Hardcoding a provider would price a
+    GPT task at Anthropic rates."""
+    from toka.adapters.cline import provider_of
+
+    assert provider_of("anthropic/claude-sonnet-4.5") == "anthropic"
+    assert provider_of("openai/gpt-4o") == "openai"
+    assert provider_of("google/gemini-2.5-pro") == "google"
+    assert provider_of(None) == "unknown"

@@ -47,6 +47,30 @@ PRICES: dict[str, ModelPrice] = {
 ANTHROPIC_FALLBACK = PRICES["claude-opus-5"]
 
 
+def _normalise(model: str | None) -> str | None:
+    """Reduce a routed model id to its canonical Anthropic form.
+
+    Routers and gateways decorate ids in ways the rate card does not use:
+    a vendor prefix (`anthropic/claude-sonnet-4.5`), a Bedrock prefix
+    (`anthropic.claude-opus-5`), a dotted minor version, or a `:beta`
+    style suffix. Without this, real traffic through Cline, OpenRouter,
+    or Bedrock silently falls through to the unpriced path.
+    """
+    if not model:
+        return model
+    out = model.strip()
+    for sep in ("/", "::"):
+        if sep in out:
+            out = out.rsplit(sep, 1)[-1]
+    if out.startswith("anthropic."):
+        out = out[len("anthropic.") :]
+    out = out.split(":", 1)[0]
+    # `claude-sonnet-4.5` -> `claude-sonnet-4-5`
+    if out.startswith("claude-"):
+        out = out.replace(".", "-")
+    return out
+
+
 def resolve(
     model: str | None, provider: str = "anthropic"
 ) -> tuple[ModelPrice | None, bool]:
@@ -56,6 +80,7 @@ def resolve(
     Bare ids match first, then prefix, so dated snapshots such as
     `claude-haiku-4-5-20251001` resolve correctly.
     """
+    model = _normalise(model)
     if model:
         if model in PRICES:
             return PRICES[model], True

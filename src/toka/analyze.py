@@ -103,6 +103,22 @@ class Report:
     unpriced_requests: int = 0
     unpriced_tokens: int = 0
 
+    @property
+    def write_accounting_reliable(self) -> bool:
+        """Whether cache-write counts can be trusted.
+
+        Reads require a prior write, so reads vastly exceeding writes
+        means the source under-reports writes rather than that the
+        prefix was stable. Some agents populate `cacheReads` but leave
+        `cacheWrites` at zero. Reporting 0% churn off that data would
+        tell the user they have no problem when we simply cannot see it.
+        """
+        reads = sum(s.cache_read for s in self.sessions.values())
+        writes = sum(s.total_writes for s in self.sessions.values())
+        if reads == 0:
+            return True
+        return writes > 0 and reads / writes < 100
+
     # Aggregate cost split by billing category.
     cost_fresh_input: float = 0.0
     cost_cache_write: float = 0.0
