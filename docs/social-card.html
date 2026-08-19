@@ -1,0 +1,61 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  /* Exactly the card size GitHub renders, so nothing is cropped. */
+  html, body { margin: 0; padding: 0; width: 1280px; height: 640px; }
+  body {
+    background: #fcfcfb;
+    color: #1a1a19;
+    font: 400 20px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: 0 84px; box-sizing: border-box;
+  }
+  .name {
+    font-size: 30px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 22px;
+  }
+  .name span { color: #85857d; font-weight: 400; margin-left: 14px; font-size: 21px; }
+  h1 {
+    font-size: 55px; line-height: 1.08; font-weight: 600;
+    letter-spacing: -0.032em; margin: 0 0 26px; max-width: 21ch;
+  }
+  h1 em { font-style: normal; color: #eb6834; }
+  .bar { display: flex; gap: 3px; height: 26px; margin: 4px 0 16px; width: 700px; }
+  .bar div { border-radius: 2px; }
+  .bar :first-child { border-radius: 5px 2px 2px 5px; }
+  .bar :last-child  { border-radius: 2px 5px 5px 2px; }
+  .keys { display: flex; gap: 30px; font-size: 17px; color: #55554f; }
+  .keys b { font-weight: 500; }
+  .key { width: 11px; height: 11px; border-radius: 3px; display: inline-block; margin-right: 8px; }
+  footer {
+    margin-top: 34px; font-size: 19px; color: #85857d;
+    display: flex; gap: 26px; align-items: center;
+  }
+  code {
+    font: 19px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #fff; border: 1px solid #e6e6e1; border-radius: 7px;
+    padding: 7px 13px; color: #1a1a19;
+  }
+</style></head>
+<body>
+  <p class="name">Toka <span>· measures where agent tokens go</span></p>
+
+  <h1>How much of your AI agent bill did you <em>not need to pay?</em></h1>
+
+  <!-- The cost split, at the same proportions and hues the tool uses. -->
+  <div class="bar">
+    <div style="flex-grow:1.1;background:#2a78d6"></div>
+    <div style="flex-grow:38.5;background:#eb6834"></div>
+    <div style="flex-grow:46.4;background:#1baf7a"></div>
+    <div style="flex-grow:14.1;background:#eda100"></div>
+  </div>
+  <div class="keys">
+    <span><i class="key" style="background:#2a78d6"></i>fresh input</span>
+    <span><i class="key" style="background:#eb6834"></i><b>cache writes</b></span>
+    <span><i class="key" style="background:#1baf7a"></i>cache reads</span>
+    <span><i class="key" style="background:#eda100"></i>output</span>
+  </div>
+
+  <footer>
+    <code>pip install tokameter</code>
+    <span>Reads your local logs. Sends nothing anywhere.</span>
+  </footer>
+</body></html>
