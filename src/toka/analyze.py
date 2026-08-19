@@ -62,6 +62,9 @@ class SessionStats:
     missable_input: int = 0
     # Cache writes issued after the prior entry had already expired.
     expiry_writes: int = 0
+    # False when the source reports no cache accounting, so a "miss"
+    # cannot be distinguished from an unlogged hit.
+    cache_visible: bool = True
     cost: float = 0.0
 
     @property
@@ -102,6 +105,9 @@ class Report:
     unpriced_models: set[str] = field(default_factory=set)
     unpriced_requests: int = 0
     unpriced_tokens: int = 0
+    # Sessions from sources that log no cache accounting at all.
+    blind_sessions: int = 0
+    blind_tokens: int = 0
 
     @property
     def write_accounting_reliable(self) -> bool:
@@ -218,8 +224,17 @@ def analyze(requests: list[Request]) -> Report:
             stats.output += req.output
             stats.thinking += req.thinking
             stats.peak_context = max(stats.peak_context, req.context_size)
+            if not req.cache_visible:
+                stats.cache_visible = False
             if req.seq > 0:
                 stats.missable_input += req.fresh_input
+
+        # Cache blindness is a property of the source, not of pricing —
+        # track it before the unpriced early-return, or a source that is
+        # both blind and unpriced silently reports neither.
+        if not stats.cache_visible:
+            report.blind_sessions += 1
+            report.blind_tokens += stats.prompt_tokens
 
         # Price the two recoverable mechanisms at this session's model.
         price, _ = resolve(stats.model, stats.provider)
@@ -228,8 +243,14 @@ def analyze(requests: list[Request]) -> Report:
             continue
         p_in = price.input_per_mtok / 1_000_000
 
-        # A missed token paid 1.0x where a hit costs 0.1x.
-        miss = stats.missable_input * p_in * (1.0 - CACHE_READ_MULT)
+        # A missed token paid 1.0x where a hit costs 0.1x. Only claimable
+        # when the source actually reports caching — otherwise fresh
+        # input is just "everything", and the figure would be fiction.
+        miss = (
+            stats.missable_input * p_in * (1.0 - CACHE_READ_MULT)
+            if stats.cache_visible
+            else 0.0
+        )
 
         # An excess write paid at least 1.25x where a read costs 0.1x.
         excess = stats.excess_writes * p_in * (CACHE_WRITE_5M_MULT - CACHE_READ_MULT)

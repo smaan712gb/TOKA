@@ -37,6 +37,13 @@ class Request:
     cache_read: int
     output: int
     thinking: int = 0
+    # Whether the source reports cache accounting at all. Some agents log
+    # only a prompt-token total. Their traffic is almost certainly cached
+    # — the provider caches regardless of whether the client logs it — so
+    # counting every prompt token as a miss would report ~100% waste on a
+    # perfectly healthy setup. Sources that cannot see caching are kept
+    # out of the recoverable figure entirely.
+    cache_visible: bool = True
 
     @property
     def context_size(self) -> int:

@@ -15,12 +15,14 @@ from ..record import Request
 from .base import Adapter, sniff
 from .claude_code import ClaudeCodeAdapter
 from .cline import ClineAdapter
+from .continue_dev import ContinueAdapter
 from .gemini import GeminiAdapter
 from .openai_compat import OpenAICompatAdapter
 
 ADAPTERS: list[Adapter] = [
     ClaudeCodeAdapter(),
     ClineAdapter(),
+    ContinueAdapter(),
     OpenAICompatAdapter(),
     GeminiAdapter(),
 ]

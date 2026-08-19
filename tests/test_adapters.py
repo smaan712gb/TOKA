@@ -110,3 +110,43 @@ def test_cline_router_infers_provider_from_model_not_adapter():
     assert provider_of("openai/gpt-4o") == "openai"
     assert provider_of("google/gemini-2.5-pro") == "google"
     assert provider_of(None) == "unknown"
+
+
+def test_blind_sources_are_counted_even_when_also_unpriced():
+    """Cache blindness is a property of the source, not of pricing. A
+    source that is both blind and unpriced must still be reported as
+    blind, or the user sees no warning at all."""
+    from toka.record import Request
+
+    reqs = [
+        Request(
+            source="continue", provider="openai", session="s", seq=i,
+            timestamp=None, model="gpt-4.1", fresh_input=5000,
+            cache_write_5m=0, cache_write_1h=0, cache_read=0, output=100,
+            cache_visible=False,
+        )
+        for i in range(3)
+    ]
+    report = analyze(reqs)
+    assert report.blind_sessions == 1
+    assert report.blind_tokens == 15000
+    assert report.recoverable_miss == 0.0  # never claimed on blind data
+
+
+def test_blind_source_never_reports_recoverable_waste():
+    """The trap this guards: a source logging only a prompt-token total
+    would otherwise read as ~100% cache miss on a healthy setup."""
+    from toka.record import Request
+
+    reqs = [
+        Request(
+            source="x", provider="anthropic", session="s", seq=i,
+            timestamp=None, model="claude-opus-5", fresh_input=100_000,
+            cache_write_5m=0, cache_write_1h=0, cache_read=0, output=100,
+            cache_visible=False,
+        )
+        for i in range(5)
+    ]
+    report = analyze(reqs)
+    assert report.total_cost > 0      # cost is still real
+    assert report.recoverable == 0.0  # but no waste is claimed

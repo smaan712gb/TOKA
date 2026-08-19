@@ -120,6 +120,14 @@ def render(report: Report, top: int = 10) -> str:
             add(f"  {model}")
         add("")
 
+    if report.blind_sessions:
+        add("NOTE — sources that log no cache accounting:")
+        add(f"  {report.blind_sessions} session(s), {_tokens(report.blind_tokens)} prompt tokens")
+        add("  Excluded from 'recoverable' — with no cache fields logged, a miss")
+        add("  is indistinguishable from an unrecorded hit, and counting every")
+        add("  prompt token as waste would report ~100% on a healthy setup.")
+        add("")
+
     if report.unpriced_requests:
         add("NOTE — no rate card, excluded from all dollar figures:")
         add(f"  {report.unpriced_requests:,} requests, "
