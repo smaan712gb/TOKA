@@ -102,3 +102,23 @@ def test_the_readme_documents_every_public_export():
         and not re.search(rf"\b{re.escape(name)}\b", README)
     ]
     assert not undocumented, f"public exports missing from the README: {undocumented}"
+
+
+def test_the_readme_never_tells_anyone_to_install_the_wrong_package():
+    """`toka` on PyPI is an unrelated project, so `pip install toka`
+    silently installs someone else's tool. This was the README's first
+    instruction for eleven releases."""
+    assert not re.search(r"pip install toka\s*$", README, flags=re.M)
+    assert not re.search(r"pip install toka\s", README)
+
+
+def test_the_documented_package_name_is_the_one_that_would_be_published():
+    """A README naming a different package than pyproject builds is a
+    broken install command the day it goes public."""
+    name = PYPROJECT["project"]["name"]
+    assert f"`{name}`" in README, f"README should name the package {name!r}"
+
+
+def test_the_command_and_import_names_stay_stable():
+    """The distribution name may change; what users type must not."""
+    assert PYPROJECT["project"]["scripts"] == {"toka": "toka.cli:main"}

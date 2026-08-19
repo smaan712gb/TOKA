@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "toka"
+name = "tokameter"
 version = "0.13.0"
 description = "Measure where an AI agent's token spend actually goes."
 readme = "README.md"
