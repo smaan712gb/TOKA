@@ -129,6 +129,47 @@ token metrics alone will happily call it a win.
 
 ---
 
+## Comparing agents
+
+```bash
+toka --compare
+```
+
+Finds every agent on the machine that keeps logs, runs the same analysis over
+each, and puts them side by side.
+
+```
+  agent           sessions  requests  prompt tok  hit rate  recoverable
+  --------------------------------------------------------------------------
+  Claude Code           38    36,583      11.25B     97.9%        15.8%
+  Cline                410    22,137       2.96B     59.3%        59.9%
+  Continue               1        29       97.9K not logged            —
+
+  confidence
+  --------------------------------------------------------------------------
+  Claude Code    full
+  Cline          miss only — writes unreported
+  Continue       no cache data — telemetry is opt-in and stops silently
+
+  Spread: Claude Code holds 97.9% of its prompt tokens in cache;
+          Cline holds 59.3%. Same job, 39 points apart.
+```
+
+**Hit rate is the comparable number.** It measures how an agent builds its
+prompts — whether the prefix survives between turns — not what it was asked to
+do. Token totals and cost are *not* comparable: they reflect how much each
+agent was used, not how well it was engineered.
+
+**`not logged` is not a zero.** An agent that records no cache fields scores 0%
+on arithmetic alone, which would put a well-behaved tool at the bottom of the
+table on no evidence. Unmeasured rows render `—` and are excluded from the
+ranking and the spread entirely.
+
+It is a command rather than a published table because a leaderboard you can
+reproduce on your own logs is the only kind worth trusting.
+
+---
+
 ## Usage
 
 ```bash

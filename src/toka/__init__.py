@@ -13,7 +13,7 @@ from .guard import CheckReport, PrefixGuard, render, sorted_keys_warning
 from .repair import RepairResult, repair, repair_safely, verify
 from .record import Request
 
-__version__ = "0.7.0"
+__version__ = "0.8.0"
 
 __all__ = [
     "PrefixGuard",
