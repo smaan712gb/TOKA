@@ -238,10 +238,53 @@ Formats are detected automatically — you never name one.
 
 ---
 
+## Agents that keep no logs
+
+Every adapter above reads something an agent already wrote down, which leaves
+the biggest hole in coverage exactly where you'd least expect it: code that
+calls a provider API directly writes nothing at all. DeepSeek, OpenRouter and
+every homegrown agent loop are invisible no matter how many adapters get
+written.
+
+One line at the call site closes it:
+
+```python
+import toka
+
+response = client.messages.create(...)
+toka.log(response)
+```
+
+It appends a normalised record to `~/.toka` (or `$TOKA_HOME`) and returns.
+`toka` and `toka --compare` pick it up from there. Anthropic, OpenAI, DeepSeek
+and Google response shapes are all understood, as objects or as raw dicts, and
+`toka.new_session()` starts a new conversation grouping — worth calling,
+because write amplification is measured *within* a session and lumping
+unrelated conversations together understates churn in all of them.
+
+Three properties worth knowing about:
+
+**It never raises.** A metrics call that throws inside a request handler is
+worse than no metrics. Failures return `None` — but they are not silent
+either: an unrecognised response warns once per process and increments
+`toka.logger.skipped`, so a shim quietly recording nothing for a week is not a
+state you can reach by accident. Pass `strict=True` to raise instead.
+
+**It records what it could not see.** A response whose shape carries no cache
+fields is written as unmeasured, which keeps its tokens out of the recoverable
+figure downstream — the same rule the Continue and Aider adapters follow.
+
+**A response with no usage block is not logged as a request costing zero.** It
+is skipped and counted. A free request is a claim, and one nobody would think
+to check.
+
+---
+
 ## Supported agents
 
 | Adapter | Covers | Verified against real traffic |
 |---|---|---|
+| `toka-log` | Anything you call `toka.log()` on — direct API use, homegrown loops, gateways | yes — Toka writes it |
 | `claude-code` | Claude Code session transcripts | yes |
 | `cline` | Cline / Roo task history (VS Code global storage) | yes |
 | `continue` | Continue `dev_data/tokensGenerated.jsonl` | yes |

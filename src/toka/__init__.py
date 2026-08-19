@@ -8,17 +8,20 @@ Three parts:
 
 "How much", then "why", then "fix it".
 
-Two more sit on top of those and are reached through the CLI rather than
-imported: `toka.compare` runs the analysis across every agent on the
+`toka.log` sits in front of all three, for agents that keep no logs of
+their own: call it on a provider response and the analysis has something
+to read. Two more sit on top and are reached through the CLI rather than
+imported — `toka.compare` runs the analysis across every agent on the
 machine, and `toka.dashboard` renders the result as a page for people who
 do not read terminals.
 """
 
 from .guard import CheckReport, PrefixGuard, render, sorted_keys_warning
+from .logger import log, new_session
 from .repair import RepairResult, repair, repair_safely, verify
 from .record import Request
 
-__version__ = "0.10.0"
+__version__ = "0.11.0"
 
 __all__ = [
     "PrefixGuard",
@@ -30,5 +33,7 @@ __all__ = [
     "repair_safely",
     "verify",
     "RepairResult",
+    "log",
+    "new_session",
     "__version__",
 ]

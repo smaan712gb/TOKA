@@ -81,9 +81,12 @@ def test_the_readme_documents_every_public_export():
     feature the user has no way to discover."""
     import toka
 
+    # Whole-word, not substring: a short export like `log` matches inside
+    # "logs" and would pass without ever being documented.
     undocumented = [
         name
         for name in toka.__all__
-        if not name.startswith("__") and name not in README
+        if not name.startswith("__")
+        and not re.search(rf"\b{re.escape(name)}\b", README)
     ]
     assert not undocumented, f"public exports missing from the README: {undocumented}"

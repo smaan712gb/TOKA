@@ -52,6 +52,7 @@ def candidates() -> dict[str, list[Path]]:
         if path.exists():
             found.setdefault(agent, []).append(path)
 
+    add("Direct API", Path(os.environ.get("TOKA_HOME") or home / ".toka"))
     add("Claude Code", home / ".claude" / "projects")
     add("Continue", home / ".continue" / "dev_data")
 
@@ -71,4 +72,5 @@ NOTES: dict[str, str] = {
     "Continue": "telemetry is opt-in and stops silently; coverage is often partial",
     "Aider": "adapter built from docs, not verified against real traffic",
     "Roo Code": "shares Cline's format",
+    "Direct API": "recorded by toka.log at your own call sites",
 }

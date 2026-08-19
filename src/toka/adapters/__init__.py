@@ -20,8 +20,11 @@ from .continue_dev import ContinueAdapter
 from .gemini import GeminiAdapter
 from .generic import GenericAdapter
 from .openai_compat import OpenAICompatAdapter
+from .toka_log import TokaLogAdapter
 
 ADAPTERS: list[Adapter] = [
+    # Our own format, and the only one that never has to infer anything.
+    TokaLogAdapter(),
     ClaudeCodeAdapter(),
     ClineAdapter(),
     ContinueAdapter(),
