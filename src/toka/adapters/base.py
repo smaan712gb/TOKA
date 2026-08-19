@@ -12,6 +12,7 @@ than guessing.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from typing import Iterator, Protocol, runtime_checkable
@@ -96,6 +97,30 @@ def iter_objects(path: Path) -> Iterator[dict]:
                     yield obj
     except OSError:
         return
+
+
+def scoped_session(scope: Path, label: str) -> str:
+    """A session id that cannot collide with an unrelated file's.
+
+    Most formats do not record a session id, so adapters fall back to
+    something from the path. A bare filename is not enough: one machine
+    held sixty transcripts all named `audit.jsonl` in different
+    directories, and merging them summed sixty sessions' cache writes
+    against a single session's peak context. Write amplification is
+    measured per session, so that inflates churn — the one number that is
+    only worth reporting as a lower bound.
+
+    `scope` is whatever genuinely identifies the conversation: the file
+    for formats where one file is one session, the containing directory
+    for formats like Cline that split a task across several files. The
+    label stays readable; the digest makes it unique.
+    """
+    try:
+        key = str(scope.resolve())
+    except OSError:  # unresolvable path — its literal form is still stable
+        key = str(scope)
+    digest = hashlib.sha1(key.encode("utf-8", "replace")).hexdigest()[:8]
+    return f"{label}-{digest}" if label else digest
 
 
 def dig(obj: dict, *path: str):

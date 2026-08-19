@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, dig, iter_objects
+from .base import as_int, dig, iter_objects, scoped_session
 
 # Fields a logger might use for the conversation grouping key, in order.
 SESSION_KEYS = (
@@ -48,7 +48,7 @@ class OpenAICompatAdapter:
         return 0.0
 
     def parse(self, path: Path) -> Iterator[Request]:
-        fallback_session = path.stem
+        fallback_session = scoped_session(path, path.stem)
         counters: dict[str, int] = {}
         for record in iter_objects(path):
             usage = _usage(record)

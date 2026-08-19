@@ -91,9 +91,7 @@ class Row:
 def collect(extra: dict[str, Path] | None = None) -> list[Row]:
     """Analyse every discoverable agent. Silently skips empty ones."""
     rows: list[Row] = []
-    found = candidates()
-    for agent, path in (extra or {}).items():
-        found.setdefault(agent, []).append(path)
+    found = candidates({k: [v] for k, v in (extra or {}).items()})
 
     for agent, paths in sorted(found.items()):
         files: list[Path] = []

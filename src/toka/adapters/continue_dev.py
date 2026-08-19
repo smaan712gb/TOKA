@@ -27,7 +27,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, iter_objects
+from .base import as_int, iter_objects, scoped_session
 
 MARKER = "tokensGenerated"
 
@@ -43,7 +43,7 @@ class ContinueAdapter:
         return 0.0
 
     def parse(self, path: Path) -> Iterator[Request]:
-        session = path.stem
+        session = scoped_session(path, path.stem)
         seq = 0
         for record in iter_objects(path):
             if record.get("eventName") != MARKER:

@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
+from .base import scoped_session
 
 VERIFIED = False
 
@@ -56,7 +57,7 @@ class AiderAdapter:
         )
 
     def parse(self, path: Path) -> Iterator[Request]:
-        session = path.parent.name or path.stem
+        session = scoped_session(path.parent, path.parent.name or path.stem)
         seq = 0
         model: str | None = None
         started: str | None = None

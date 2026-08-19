@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, dig, iter_objects
+from .base import as_int, dig, iter_objects, scoped_session
 
 # Only these entries represent a billed model call.
 MARKER = "api_req_started"
@@ -48,7 +48,7 @@ class ClineAdapter:
     def parse(self, path: Path) -> Iterator[Request]:
         # The task id is the containing directory; the filename is the
         # same for every task and would collapse them all into one.
-        session = path.parent.name or path.stem
+        session = scoped_session(path.parent, path.parent.name or path.stem)
         model = _model_of(path)
         seq = 0
 

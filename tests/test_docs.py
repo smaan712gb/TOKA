@@ -25,6 +25,19 @@ README = (ROOT / "README.md").read_text(encoding="utf-8")
 PYPROJECT = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
+def _section(heading: str) -> str:
+    """The README text under one heading, up to the next one.
+
+    Sliced by heading rather than by a marker that happens to follow it,
+    so restructuring the README does not make these tests error out
+    instead of reporting what they check.
+    """
+    start = README.index(heading) + len(heading)
+    rest = README[start:]
+    end = rest.find("\n## ")
+    return rest if end == -1 else rest[:end]
+
+
 def test_the_package_version_matches_itself():
     """pyproject and __init__ have drifted apart twice already — once
     shipping 0.8.0 that reported itself as 0.7.0."""
@@ -61,7 +74,7 @@ def test_every_documented_command_actually_parses():
 
 def test_every_adapter_appears_in_the_supported_agents_table():
     """A new adapter that nobody knows about helps nobody."""
-    table = README[README.index("## Supported agents") :]
+    table = _section("## Supported agents")
     missing = [a.name for a in ADAPTERS if f"`{a.name}`" not in table]
     assert not missing, f"adapters missing from the README table: {missing}"
 
@@ -69,8 +82,7 @@ def test_every_adapter_appears_in_the_supported_agents_table():
 def test_the_table_does_not_claim_adapters_that_do_not_exist():
     """The other direction — a row for an adapter that was renamed or
     removed reads as coverage the tool does not have."""
-    table = README[README.index("## Supported agents") :]
-    table = table[: table.index("###")]
+    table = _section("## Supported agents")
     claimed = set(re.findall(r"^\| `([a-z0-9-]+)`", table, flags=re.M))
     real = {a.name for a in ADAPTERS}
     assert claimed <= real, f"README claims adapters that do not exist: {claimed - real}"

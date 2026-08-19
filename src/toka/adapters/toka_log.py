@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, iter_objects
+from .base import as_int, iter_objects, scoped_session
 
 
 class TokaLogAdapter:
@@ -38,7 +38,7 @@ class TokaLogAdapter:
             yield Request(
                 source=self.name,
                 provider=record.get("provider") or "unknown",
-                session=str(record.get("session") or path.stem),
+                session=str(record.get("session") or scoped_session(path, path.stem)),
                 seq=as_int(record.get("seq")),
                 timestamp=record.get("timestamp"),
                 model=record.get("model"),

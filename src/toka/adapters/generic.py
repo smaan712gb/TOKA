@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, iter_objects
+from .base import as_int, iter_objects, scoped_session
 
 # Ordered: the first pattern to match a key wins, so more specific
 # patterns must precede the looser ones.
@@ -64,7 +64,7 @@ class GenericAdapter:
         return 0.0
 
     def parse(self, path: Path) -> Iterator[Request]:
-        fallback = path.stem
+        fallback = scoped_session(path, path.stem)
         counters: dict[str, int] = {}
         for record in iter_objects(path):
             found = _scan(record)

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, dig, iter_objects
+from .base import as_int, dig, iter_objects, scoped_session
 
 SESSION_KEYS = ("session_id", "sessionId", "conversation_id", "trace_id")
 TIMESTAMP_KEYS = ("timestamp", "createTime", "created_at", "time")
@@ -28,7 +28,7 @@ class GeminiAdapter:
         return 0.0
 
     def parse(self, path: Path) -> Iterator[Request]:
-        fallback_session = path.stem
+        fallback_session = scoped_session(path, path.stem)
         counters: dict[str, int] = {}
         for record in iter_objects(path):
             usage = _usage(record)

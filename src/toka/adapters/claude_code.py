@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Iterator
 
 from ..record import Request
-from .base import as_int, dig, iter_objects
+from .base import as_int, dig, iter_objects, scoped_session
 
 
 class ClaudeCodeAdapter:
@@ -34,7 +34,7 @@ class ClaudeCodeAdapter:
         return 0.0
 
     def parse(self, path: Path) -> Iterator[Request]:
-        session = path.stem
+        session = scoped_session(path, path.stem)
         seq = 0
         for record in iter_objects(path):
             message = record.get("message")
