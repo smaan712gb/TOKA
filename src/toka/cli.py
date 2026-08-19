@@ -16,7 +16,12 @@ def default_transcript_root() -> Path:
     return Path.home() / ".claude" / "projects"
 
 
-def main(argv: list[str] | None = None) -> int:
+def build_parser() -> argparse.ArgumentParser:
+    """The command line, as one inspectable object.
+
+    Separated from `main` so the docs test can ask the real parser what
+    flags exist instead of trusting the README to have kept up.
+    """
     parser = argparse.ArgumentParser(
         prog="toka",
         description="Measure where an agent's token spend actually goes.",
@@ -38,7 +43,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--top", type=int, default=10, help="worst-N sessions to list")
     parser.add_argument("--out", type=Path, help="also write the report here")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--html",
+        type=Path,
+        help="also write a dashboard here, for people who don't read terminals",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
 
     if args.compare:
         from .compare import collect, render as render_compare
@@ -47,6 +61,8 @@ def main(argv: list[str] | None = None) -> int:
         print("discovering agents...", file=sys.stderr)
         rows = collect(extra)
         print(render_compare(rows))
+        if args.html:
+            _write_html(args.html, rows)
         return 0
 
     root = args.path or default_transcript_root()
@@ -81,14 +97,32 @@ def main(argv: list[str] | None = None) -> int:
     if skipped:
         print(f"  unrecognised: {len(skipped)} file(s)", file=sys.stderr)
 
-    text = render(analyze(requests), top=args.top)
+    report = analyze(requests)
+    text = render(report, top=args.top)
     print(text)
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text, encoding="utf-8")
         print(f"\nwritten to {args.out}", file=sys.stderr)
+
+    if args.html:
+        # One agent is still a comparison of one — the dashboard reads a
+        # list of rows either way, so there is no second rendering path to
+        # keep in step with this one.
+        from .compare import Row
+
+        agent = used.most_common(1)[0][0] if used else "this agent"
+        _write_html(args.html, [Row(agent=agent, report=report, files=len(paths))])
     return 0
+
+
+def _write_html(path: Path, rows) -> None:
+    from .dashboard import render as render_html
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_html(rows), encoding="utf-8")
+    print(f"dashboard written to {path}", file=sys.stderr)
 
 
 if __name__ == "__main__":

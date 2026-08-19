@@ -84,6 +84,12 @@ break, so it stays quiet until something actually goes wrong.
 It also knows that a change in `tools` costs more than the same change in
 `messages`, because tools render first and take the whole prompt with them.
 
+`check()` returns a `CheckReport` — `stable`, `invalidated_pct`, and the
+offending `break_` — so you can assert on it in a test rather than read it.
+There is one thing the guard cannot see for you: it canonicalises before
+comparing, so it never trips over key order, but *your* client might. Pass
+your tool list to `sorted_keys_warning(tools)` to find out.
+
 ---
 
 ## Fixing it
@@ -126,6 +132,10 @@ it and stops.
 
 A repair pass that saves 20% and breaks one task in fifty is a bad trade, and
 token metrics alone will happily call it a win.
+
+Both functions return a `RepairResult`, which carries the rewritten `system`,
+`tools` and `messages` alongside `applied` and `proposed` change lists. Your
+own objects are never mutated, so you can diff the two and decide.
 
 ---
 
@@ -170,6 +180,33 @@ reproduce on your own logs is the only kind worth trusting.
 
 ---
 
+## A page for everyone else
+
+The people who decide whether a bill is acceptable are usually not the people
+reading a terminal.
+
+```bash
+toka --compare --html spend.html
+```
+
+Writes a single self-contained HTML file — no scripts, no fonts, no network,
+nothing to serve. It leads with the one number that matters (what was
+avoidable), then explains where the money went, why the cache was rewritten,
+and how the agents compare.
+
+It inherits every suppression rule from the text report, which matters more
+here than anywhere else: a dashboard is exactly where a withheld number
+quietly reappears as a reassuring zero, because nobody reading it knows to
+ask. So the page names what it left out — which agent was excluded from the
+headline, which one could not carry the churn chart and why — instead of
+averaging it in.
+
+Every charted value is also printed as text. Two of the four light-mode
+colours land under the 3:1 contrast threshold, so a number you could only get
+by looking at a colour would be a number some readers cannot get at all.
+
+---
+
 ## Usage
 
 ```bash
@@ -179,6 +216,8 @@ toka session.jsonl                # a single file
 toka --project my-repo            # only matching transcript paths
 toka --top 20                     # list the 20 worst sessions
 toka --out report.txt             # also write to a file
+toka --html spend.html            # also write the dashboard
+toka --compare                    # every agent on this machine, side by side
 ```
 
 Formats are detected automatically — you never name one.
