@@ -50,6 +50,42 @@ amplification was 5×; the worst session rewrote its context 86 times over.
 
 ---
 
+## Finding out *why*
+
+The report tells you churn is costing you. The guard tells you which bytes
+did it — the thing you can't get from a dashboard.
+
+```python
+from toka import PrefixGuard
+
+guard = PrefixGuard()          # one per conversation
+
+report = guard.check(system=system, tools=tools, messages=messages)
+if not report.stable:
+    print(report.explain())
+```
+
+```
+prefix broke at turn 2 — 100% of the cached prefix invalidated (390 chars)
+  segment: system[0]
+  cause:   looks like a timestamp
+  before:  ...Current date: 2026-08-19T10:33:01Z\nYou are a coding assistant...
+  after:   ...Current date: 2026-08-19T10:34:15Z\nYou are a coding assistant...
+  note:    system renders before messages, so all history was lost too
+
+  Move volatile content out of the system prompt and into a later message,
+  after the last cache breakpoint.
+```
+
+It runs offline against the request you're about to send — no API call, no
+key, nothing leaves the process. Growth by appending is never reported as a
+break, so it stays quiet until something actually goes wrong.
+
+It also knows that a change in `tools` costs more than the same change in
+`messages`, because tools render first and take the whole prompt with them.
+
+---
+
 ## Usage
 
 ```bash
