@@ -77,21 +77,21 @@ and it will find every agent on the machine instead.
 
 ```text
   sessions analysed              134
-  model requests              37,141
-  total cost              $11,239.09
+  model requests              37,161
+  total cost              $11,244.56
 
 WHERE THE MONEY WENT
   fresh input (1.0x)                  $9.46     0.1%
-  cache writes (1.25-2.0x)        $2,645.08    23.5%
-  cache reads (0.1x)              $7,455.44    66.3%
-  output                          $1,129.11    10.0%
+  cache writes (1.25-2.0x)        $2,645.34    23.5%
+  cache reads (0.1x)              $7,460.00    66.3%
+  output                          $1,129.76    10.0%
 
   rewrites by cause
-    first pass over context       34.6M    14.8%
+    first pass over context       43.9M    18.8%
     TTL expiry (idle gap)         47.5M    20.3%
-    prefix churn                 151.3M    64.8%
+    prefix churn                 142.1M    60.9%
 
-RECOVERABLE                      $1,341.86    11.9% of spend
+RECOVERABLE                      $1,245.76    11.1% of spend
 ```
 
 **How to read that.** Sending context to a model costs full price the first
@@ -99,7 +99,7 @@ time. Providers then cache it, and reading it back costs a tenth as much — so
 a well-behaved agent pays once and reads cheaply forever after. The number
 that matters is **prefix churn**: context that was still sitting in the cache,
 thrown away, and paid for from scratch. That is the avoidable part, and on
-this machine it was two thirds of every rewrite.
+this machine it was three fifths of every rewrite.
 
 Other things you can do:
 
@@ -127,7 +127,7 @@ them side by side.
 ```text
   agent           sessions  requests  prompt tok  hit rate  recoverable
   --------------------------------------------------------------------------
-  Claude Code          134    37,142      11.41B     97.9%        11.9%
+  Claude Code          134    37,161      11.41B     97.9%        11.1%
   Cline                410    22,137       2.96B     59.3%        59.9%
   Claude Desktop        60     6,558       1.20B     92.0%        33.5%
   Continue               1        29       97.9K not logged            —
@@ -367,9 +367,14 @@ hit yet, so paying full price for it was unavoidable.
 **Prefix churn.** In a well-built session the context only grows, and each
 token is cached once, so total writes should land near the largest context the
 session ever held. Writing several times that means the cache kept breaking.
-Rewrites that followed an idle gap longer than the cache lifetime are
-discounted first — those expired, and no amount of good engineering brings
-them back. What remains was still live and got thrown away anyway.
+
+Two kinds of rewrite are discounted before anything is called waste. Rewrites
+after an idle gap longer than the cache lifetime are *expiry* — the entry was
+already gone. Rewrites after the context collapses are a *rebuild*: a session
+that fills its window and compacts has to cache the new prefix from scratch,
+and one pass per stretch is allowed rather than one pass per session. What
+remains was a live cache entry invalidated anyway, which is the only part
+better prompt construction could have prevented.
 
 Without that discount the headline reads about four points higher. It is in
 there because a number that counts unavoidable re-warming as waste is a number

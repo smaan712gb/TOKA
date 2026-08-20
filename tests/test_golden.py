@@ -195,3 +195,84 @@ def pytest_approx(value):
     import pytest
 
     return pytest.approx(value, rel=1e-9)
+
+
+def test_a_compacted_session_is_not_charged_for_rebuilding(tmp_path):
+    """A session that fills its context window and compacts has to cache
+    the new, smaller prefix from scratch. That pass is as unavoidable as
+    a TTL expiry, and charging for it would be the same mistake.
+
+        grows to      10,000  (written once)
+        compacts to    2,000  (written again — a new prefix)
+        grows to       6,000  (2,000 + 4,000 more)
+
+        total writes  16,000
+        peak context  10,000
+        baseline      10,000 + 6,000 = 16,000, one pass per stretch
+        excess        16,000 - 16,000 = 0
+    """
+    _write(
+        tmp_path,
+        "compacted.jsonl",
+        [
+            _anthropic(0, 10_000, 0, 0, 50, "2026-08-19T10:00:00Z"),
+            _anthropic(0, 0, 0, 10_000, 50, "2026-08-19T10:00:20Z"),
+            # the compaction: context collapses, prefix is replaced
+            _anthropic(0, 2_000, 0, 0, 50, "2026-08-19T10:00:40Z"),
+            _anthropic(0, 4_000, 0, 2_000, 50, "2026-08-19T10:01:00Z"),
+        ],
+    )
+    report = analyze(parse_all(find_transcripts(tmp_path))[0])
+    stats = next(iter(report.sessions.values()))
+
+    assert stats.total_writes == 16_000
+    assert stats.peak_context == 10_000
+    assert stats.rebuild_baseline == 16_000
+    assert stats.excess_writes == 0
+    assert report.recoverable_excess_writes == 0.0
+
+
+def test_churn_after_a_compaction_is_still_counted(tmp_path):
+    """The discount covers one pass per stretch, not everything that
+    follows a compaction — otherwise a session could hide unlimited churn
+    behind a single context drop.
+
+        stretch one   10,000, written once
+        stretch two    3,000, written three times over
+        baseline      13,000; writes 19,000; excess 6,000
+    """
+    _write(
+        tmp_path,
+        "churn-after.jsonl",
+        [
+            _anthropic(0, 10_000, 0, 0, 50, "2026-08-19T10:00:00Z"),
+            _anthropic(0, 3_000, 0, 0, 50, "2026-08-19T10:00:20Z"),
+            _anthropic(0, 3_000, 0, 0, 50, "2026-08-19T10:00:40Z"),
+            _anthropic(0, 3_000, 0, 0, 50, "2026-08-19T10:01:00Z"),
+        ],
+    )
+    report = analyze(parse_all(find_transcripts(tmp_path))[0])
+    stats = next(iter(report.sessions.values()))
+
+    assert stats.total_writes == 19_000
+    assert stats.rebuild_baseline == 13_000
+    assert stats.excess_writes == 6_000
+
+
+def test_ordinary_variation_is_not_mistaken_for_a_rebuild(tmp_path):
+    """Context wobbles turn to turn. Treating a small dip as a rebuild
+    would hand every session a free pass and hide real churn."""
+    _write(
+        tmp_path,
+        "wobble.jsonl",
+        [
+            _anthropic(0, 10_000, 0, 0, 50, "2026-08-19T10:00:00Z"),
+            _anthropic(0, 0, 0, 9_000, 50, "2026-08-19T10:00:20Z"),  # -10%
+            _anthropic(0, 10_000, 0, 0, 50, "2026-08-19T10:00:40Z"),  # rewrite
+        ],
+    )
+    report = analyze(parse_all(find_transcripts(tmp_path))[0])
+    stats = next(iter(report.sessions.values()))
+
+    assert stats.rebuild_baseline == 10_000  # one stretch, not two
+    assert stats.excess_writes == 10_000

@@ -33,6 +33,11 @@ from .record import Request
 # idle gap is expiry, not churn. Only churn is recoverable by better
 # context construction.
 TTL_5M_SECONDS = 5 * 60
+# A context this much smaller than the stretch before it has been
+# replaced, not merely varied. Loose on purpose: over-detecting rebuilds
+# lowers the waste we claim, under-detecting raises it, and only one of
+# those errors is acceptable here.
+COMPACTION_DROP = 0.7
 TTL_1H_SECONDS = 60 * 60
 
 
@@ -58,6 +63,10 @@ class SessionStats:
     output: int = 0
     thinking: int = 0
     peak_context: int = 0
+    # Sum of the peak of each contiguous stretch of context. Equal to
+    # peak_context in a session that only ever grows; larger in one that
+    # was compacted and had to be built up again.
+    rebuild_baseline: int = 0
     # Fresh input excluding the session's first request.
     missable_input: int = 0
     # Cache writes issued after the prior entry had already expired.
@@ -80,10 +89,20 @@ class SessionStats:
 
     @property
     def excess_writes(self) -> int:
-        """Writes beyond one full pass over peak context, after discounting
-        rewrites that followed a TTL lapse. What remains is prefix churn:
-        the cache was still live and got invalidated anyway."""
-        return max(0, self.total_writes - self.peak_context - self.expiry_writes)
+        """Writes beyond what an ideally-cached session would have paid.
+
+        The baseline is one full pass over the context — or, where the
+        context was compacted and rebuilt, one pass per stretch. Rewrites
+        that followed a TTL lapse are discounted on top. What remains was
+        a live cache entry invalidated anyway, which is the only part
+        better prompt construction could have avoided.
+
+        Counting a compaction as waste would be the same mistake as
+        counting expiry as waste: real re-warming that no amount of
+        engineering removes.
+        """
+        baseline = max(self.peak_context, self.rebuild_baseline)
+        return max(0, self.total_writes - baseline - self.expiry_writes)
 
     @property
     def prompt_tokens(self) -> int:
@@ -177,6 +196,7 @@ def analyze(requests: list[Request]) -> Report:
         reqs.sort(key=lambda r: r.seq)
         stats = SessionStats(session=session)
         prev_ts: datetime | None = None
+        segment_peak = 0
 
         for req in reqs:
             # Classify this request's writes as expiry or churn.
@@ -224,10 +244,25 @@ def analyze(requests: list[Request]) -> Report:
             stats.output += req.output
             stats.thinking += req.thinking
             stats.peak_context = max(stats.peak_context, req.context_size)
+
+            # A context that falls well below the stretch it belongs to
+            # has been compacted or replaced: what follows has to be
+            # cached from scratch, and that pass is not avoidable. The
+            # threshold is deliberately loose — ordinary turn-to-turn
+            # variation must not register as a rebuild.
+            if segment_peak and req.context_size < segment_peak * COMPACTION_DROP:
+                stats.rebuild_baseline += segment_peak
+                segment_peak = req.context_size
+            else:
+                segment_peak = max(segment_peak, req.context_size)
             if not req.cache_visible:
                 stats.cache_visible = False
             if req.seq > 0:
                 stats.missable_input += req.fresh_input
+
+        # The last stretch never ends in a drop, so close it here or a
+        # compacted session is credited for every rebuild but its last.
+        stats.rebuild_baseline += segment_peak
 
         # Cache blindness is a property of the source, not of pricing —
         # track it before the unpriced early-return, or a source that is
