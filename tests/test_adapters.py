@@ -234,3 +234,94 @@ def test_cache_multipliers_are_per_model_not_global():
               cache_read=1_000_000, output=0)
     assert cost(anthropic, **kw) == 0.5      # 1M * $5 * 0.1
     assert cost(cheap_reads, **kw) == 2.5    # 1M * $5 * 0.5
+
+
+def _cc_record(uuid, parent, sidechain, *, write=0, read=0, session="s"):
+    return {
+        "uuid": uuid,
+        "parentUuid": parent,
+        "isSidechain": sidechain,
+        "sessionId": session,
+        "timestamp": "2026-08-19T10:00:00Z",
+        "message": {
+            "model": "claude-sonnet-4-5",
+            "usage": {
+                "input_tokens": 10,
+                "cache_creation_input_tokens": write,
+                "cache_read_input_tokens": read,
+                "output_tokens": 5,
+            },
+        },
+    }
+
+
+def _write_jsonl(tmp_path, name, records):
+    import json
+
+    path = tmp_path / name
+    path.write_text(
+        "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+def test_a_subagent_is_its_own_session(tmp_path):
+    """A subagent runs its own conversation against its own cache. Pooled
+    with the parent, several separate contexts get summed against a
+    single peak and the difference reads as churn — which inflated the
+    churn share by 4.6 points on a real machine."""
+    from toka.adapters.claude_code import ClaudeCodeAdapter
+
+    path = _write_jsonl(
+        tmp_path,
+        "t.jsonl",
+        [
+            _cc_record("a1", None, False, write=1000),
+            _cc_record("a2", "a1", False, read=1000),
+            # two independent subagent chains launched from the parent
+            _cc_record("s1", "a2", True, write=800),
+            _cc_record("s2", "s1", True, read=800),
+            _cc_record("t1", "a2", True, write=600),
+            _cc_record("t2", "t1", True, read=600),
+        ],
+    )
+    sessions = {r.session for r in ClaudeCodeAdapter().parse(path)}
+    assert len(sessions) == 3, sessions  # parent + two subagents
+
+    # and each session numbers its own requests from zero
+    by_session = {}
+    for r in ClaudeCodeAdapter().parse(path):
+        by_session.setdefault(r.session, []).append(r.seq)
+    assert all(seqs == [0, 1] for seqs in by_session.values()), by_session
+
+
+def test_a_transcript_without_subagents_is_one_session(tmp_path):
+    from toka.adapters.claude_code import ClaudeCodeAdapter
+
+    path = _write_jsonl(
+        tmp_path,
+        "t.jsonl",
+        [
+            _cc_record("a1", None, False, write=500),
+            _cc_record("a2", "a1", False, read=500),
+            _cc_record("a3", "a2", False, read=700),
+        ],
+    )
+    records = list(ClaudeCodeAdapter().parse(path))
+    assert len({r.session for r in records}) == 1
+    assert [r.seq for r in records] == [0, 1, 2]
+
+
+def test_a_cyclic_parent_chain_cannot_hang_the_scan(tmp_path):
+    """Transcripts are written by other people's software."""
+    from toka.adapters.claude_code import ClaudeCodeAdapter
+
+    path = _write_jsonl(
+        tmp_path,
+        "t.jsonl",
+        [
+            _cc_record("x", "y", True, write=100),
+            _cc_record("y", "x", True, read=100),
+        ],
+    )
+    assert len(list(ClaudeCodeAdapter().parse(path))) == 2

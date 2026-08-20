@@ -21,7 +21,7 @@ from .logger import log, new_session
 from .repair import RepairResult, repair, repair_safely, verify
 from .record import Request
 
-__version__ = "0.13.0"
+__version__ = "0.14.0"
 
 __all__ = [
     "PrefixGuard",

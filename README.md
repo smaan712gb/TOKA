@@ -76,22 +76,22 @@ prints where the money went. If you use something else, run `toka --compare`
 and it will find every agent on the machine instead.
 
 ```text
-  sessions analysed               38
-  model requests              36,861
-  total cost              $11,149.30
+  sessions analysed              134
+  model requests              37,141
+  total cost              $11,239.09
 
 WHERE THE MONEY WENT
   fresh input (1.0x)                  $9.46     0.1%
-  cache writes (1.25-2.0x)        $2,628.11    23.6%
-  cache reads (0.1x)              $7,391.98    66.3%
-  output                          $1,119.76    10.0%
+  cache writes (1.25-2.0x)        $2,645.08    23.5%
+  cache reads (0.1x)              $7,455.44    66.3%
+  output                          $1,129.11    10.0%
 
   rewrites by cause
-    first pass over context       17.3M     7.5%
-    TTL expiry (idle gap)         44.6M    19.3%
-    prefix churn                 169.8M    73.3%
+    first pass over context       34.6M    14.8%
+    TTL expiry (idle gap)         47.5M    20.3%
+    prefix churn                 151.3M    64.8%
 
-RECOVERABLE                      $1,754.40    15.7% of spend
+RECOVERABLE                      $1,341.86    11.9% of spend
 ```
 
 **How to read that.** Sending context to a model costs full price the first
@@ -99,7 +99,7 @@ time. Providers then cache it, and reading it back costs a tenth as much — so
 a well-behaved agent pays once and reads cheaply forever after. The number
 that matters is **prefix churn**: context that was still sitting in the cache,
 thrown away, and paid for from scratch. That is the avoidable part, and on
-this machine it was three quarters of every rewrite.
+this machine it was two thirds of every rewrite.
 
 Other things you can do:
 
@@ -127,7 +127,7 @@ them side by side.
 ```text
   agent           sessions  requests  prompt tok  hit rate  recoverable
   --------------------------------------------------------------------------
-  Claude Code           38    36,861      11.31B     97.9%        15.7%
+  Claude Code          134    37,142      11.41B     97.9%        11.9%
   Cline                410    22,137       2.96B     59.3%        59.9%
   Claude Desktop        60     6,558       1.20B     92.0%        33.5%
   Continue               1        29       97.9K not logged            —
